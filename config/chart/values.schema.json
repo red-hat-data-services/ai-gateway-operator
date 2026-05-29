@@ -19,8 +19,7 @@
       "type": "object",
       "required": [
         "repository",
-        "tag",
-        "fullRef"
+        "tag"
       ]
     },
     "ResourceList": {
@@ -60,11 +59,7 @@
         }
       },
       "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "name",
-        "annotations"
-      ]
+      "type": "object"
     },
     "Values": {
       "properties": {
@@ -89,9 +84,6 @@
         "imagePullSecret": {
           "type": "string"
         },
-        "operatorNamespace": {
-          "type": "string"
-        },
         "config": {
           "additionalProperties": {
             "type": "string"
@@ -106,9 +98,7 @@
         "replicas",
         "resources",
         "leaderElect",
-        "serviceAccount",
-        "imagePullSecret",
-        "operatorNamespace"
+        "serviceAccount"
       ]
     }
   }

@@ -48,13 +48,13 @@ import (
 	"github.com/lburgazzoli/gomega-matchers/pkg/matchers/jq"
 	k8sm "github.com/lburgazzoli/gomega-matchers/pkg/matchers/k8s"
 
-	componentsv1alpha1 "github.com/opendatahub-io/ai-gateway-operator/api/components/v1alpha1"
 	aigatewaycontroller "github.com/opendatahub-io/ai-gateway-operator/internal/controller/aigateway"
 	moduleconfig "github.com/opendatahub-io/ai-gateway-operator/pkg/config"
 	"github.com/opendatahub-io/ai-gateway-operator/pkg/version"
-	"github.com/opendatahub-io/ai-gateway-operator/test/support"
+	componentsv1alpha1 "github.com/opendatahub-io/ai-gateway-operator/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhmanager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
+	"github.com/opendatahub-io/ai-gateway-operator/test/support"
 )
 
 const (
