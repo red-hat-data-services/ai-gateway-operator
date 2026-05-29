@@ -23,10 +23,10 @@ import (
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	componentApi "github.com/opendatahub-io/ai-gateway-operator/api/components/v1alpha1"
 	moduleconfig "github.com/opendatahub-io/ai-gateway-operator/pkg/config"
 	"github.com/opendatahub-io/ai-gateway-operator/pkg/version"
+	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
 func newTestModule(t *testing.T) *Module {

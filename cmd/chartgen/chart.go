@@ -39,7 +39,7 @@ const (
 	yamlFieldData               = "data:"
 	yamlFieldMetadata           = "metadata:"
 
-	tplReleaseNamespace   = "namespace: {{ .Values.operatorNamespace }}"
+	tplReleaseNamespace   = "namespace: {{ .Release.Namespace }}"
 	tplServiceAccountName = `{{ default (include "chart.fullname" .) .Values.serviceAccount.name }}`
 
 	annotationCertManagerInjectCAFrom = "cert-manager.io/inject-ca-from"
@@ -215,7 +215,7 @@ func replaceCertificateDNSNames(raw string) string {
 			if len(parts) >= 3 {
 				indent := line[:len(line)-len(strings.TrimLeft(line, " "))]
 				suffix := parts[2] // "svc" or "svc.cluster.local"
-				lines[i] = indent + "- " + parts[0] + ".{{ .Values.operatorNamespace }}." + suffix
+				lines[i] = indent + "- " + parts[0] + ".{{ .Release.Namespace }}." + suffix
 			}
 		}
 	}
@@ -494,7 +494,7 @@ func replaceWebhookNamespace(raw string) string {
 				valueParts := strings.SplitN(value, "/", 2)
 				if len(valueParts) == 2 {
 					indent := line[:len(line)-len(strings.TrimLeft(line, " "))]
-					lines[i] = indent + strings.TrimSpace(parts[0]) + ": {{ .Values.operatorNamespace }}/" + valueParts[1]
+					lines[i] = indent + strings.TrimSpace(parts[0]) + ": {{ .Release.Namespace }}/" + valueParts[1]
 				}
 			}
 		}
@@ -503,23 +503,16 @@ func replaceWebhookNamespace(raw string) string {
 	return strings.Join(lines, "\n")
 }
 
-// injectConfigMapValues replaces the ConfigMap data section with Helm
-// template directives that merge .Values.config and .Values.imagePullSecret.
-// The original static data entries are stripped because they are expected to
-// come from .Values.config at render time.
+// injectConfigMapValues adds Helm template directives to merge
+// .Values.config and .Values.imagePullSecret into the ConfigMap data.
 func injectConfigMapValues(raw string) string {
 	lines := strings.Split(raw, "\n")
 	var result []string
 
-	skipDataEntries := false
-
 	for _, line := range lines {
+		result = append(result, line)
 		trimmed := strings.TrimSpace(line)
-
 		if trimmed == yamlFieldData {
-			skipDataEntries = true
-			result = append(result, line)
-
 			indent := line[:len(line)-len(strings.TrimLeft(line, " "))]
 			result = append(result,
 				indent+"  {{- with .Values.imagePullSecret }}",
@@ -529,20 +522,7 @@ func injectConfigMapValues(raw string) string {
 				indent+"  {{ $key }}: {{ $val | quote }}",
 				indent+"  {{- end }}",
 			)
-
-			continue
 		}
-
-		if skipDataEntries {
-			if trimmed != "" && !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "\t") {
-				skipDataEntries = false
-				result = append(result, line)
-			}
-
-			continue
-		}
-
-		result = append(result, line)
 	}
 
 	return strings.Join(result, "\n")

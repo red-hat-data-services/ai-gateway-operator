@@ -63,11 +63,7 @@ type Values struct {
 	// ImagePullSecret is the name of a pull secret for the manager image.
 	// When set it is also injected into the controller ConfigMap so the
 	// operator can propagate it to child resources.
-	ImagePullSecret string `json:"imagePullSecret"`
-
-	// OperatorNamespace is the namespace where the operator is deployed.
-	// Injected at render time by the platform operator.
-	OperatorNamespace string `json:"operatorNamespace"`
+	ImagePullSecret string `json:"imagePullSecret,omitempty"`
 
 	// Config provides additional controller configuration entries that are
 	// merged into the controller ConfigMap.
@@ -78,7 +74,7 @@ type Values struct {
 type ImageSpec struct {
 	Repository string `json:"repository"`
 	Tag        string `json:"tag"`
-	FullRef    string `json:"fullRef"`
+	FullRef    string `json:"fullRef,omitempty"`
 }
 
 // ResourceSpec mirrors corev1.ResourceRequirements but with simpler
@@ -97,10 +93,10 @@ type ResourceList struct {
 // ServiceAccountSpec configures the operator's ServiceAccount.
 type ServiceAccountSpec struct {
 	// Name overrides the ServiceAccount name (defaults to release fullname).
-	Name string `json:"name"`
+	Name string `json:"name,omitempty"`
 
 	// Annotations are additional annotations on the ServiceAccount.
-	Annotations map[string]string `json:"annotations"`
+	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
 // DefaultValues returns a Values instance with sensible defaults.
@@ -122,9 +118,6 @@ func DefaultValues() Values {
 			},
 		},
 		LeaderElect: true,
-		ServiceAccount: ServiceAccountSpec{
-			Annotations: map[string]string{},
-		},
 		Config: map[string]string{
 			"platform-type":    "OpenDataHub",
 			"platform-version": "unknown",

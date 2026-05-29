@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions: {}
+
+env:
+  CONTAINER_TOOL: docker
+
+jobs:
+  lint:
+    permissions:
+      contents: read
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Lint
+        run: make lint
+
+  test:
+    permissions:
+      contents: read
+    name: Unit + Integration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Unit tests
+        run: make test
+
+      - name: Create Kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: kind
+
+      - name: Download batch-gateway manifests
+        run: make get-manifests
+
+      - name: Integration tests
+        run: make test-integration
+
+  e2e:
+    permissions:
+      contents: read
+    name: E2E
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Create Kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: kind
+
+      - name: Compute image reference
+        id: img
+        run: |
+          IMG="ttl.sh/opendatahub-ai-gateway-operator-${GITHUB_SHA::7}:1h"
+          echo "img=${IMG}" >> "$GITHUB_OUTPUT"
+          echo "Using image: ${IMG}"
+
+      - name: Build and push image
+        run: |
+          make container-build IMG=${{ steps.img.outputs.img }}
+          make container-push IMG=${{ steps.img.outputs.img }}
+
+      - name: Generate Helm chart
+        run: make helm
+
+      - name: Run E2E tests
+        run: make test-e2e IMG=${{ steps.img.outputs.img }}
+
+      - name: Show pod logs on failure
+        if: failure()
+        run: |
+          NS="opendatahub-ai-gateway-system"
+          echo "=== Module operator logs ==="
+          kubectl logs -n "${NS}" -l app.kubernetes.io/name=opendatahub-ai-gateway-operator --tail=100 2>/dev/null || true
+          echo ""
+          echo "=== Batch-gateway operator logs ==="
+          kubectl logs -n "${NS}" -l app.kubernetes.io/name=batch-gateway-operator --tail=100 2>/dev/null || true
+          echo ""
+          echo "=== Events ==="
+          kubectl get events -n "${NS}" --sort-by='.lastTimestamp' 2>/dev/null || true

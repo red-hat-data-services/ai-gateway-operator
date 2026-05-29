@@ -2,14 +2,14 @@
 Chart name, truncated to 63 chars.
 */}}
 {{- define "chart.name" -}}
-{{- .Chart.Name | trunc 63 | trimSuffix "-" }}
+{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Release fullname, truncated to 63 chars.
 */}}
 {{- define "chart.fullname" -}}
-{{- .Release.Name | trunc 63 | trimSuffix "-" }}
+{{- default .Release.Name .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
