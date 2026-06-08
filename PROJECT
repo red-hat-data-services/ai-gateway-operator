@@ -11,7 +11,7 @@ plugins:
   dev-kubebuilder.lburgazzoli.github.io/v1:
     testEnvironment: kind
     testStyle: gomega
-projectName: opendatahub-ai-gateway-operator
+projectName: ai-gateway-operator
 repo: github.com/opendatahub-io/ai-gateway-operator
 resources:
 - api:

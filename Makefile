@@ -2,7 +2,7 @@
 -include local.mk
 
 # Image URL to use all building/pushing image targets
-IMG ?= ttl.sh/opendatahub-ai-gateway-operator-$(shell git rev-parse --short HEAD 2>/dev/null || echo dev):1h
+IMG ?= ttl.sh/ai-gateway-operator-$(shell git rev-parse --short HEAD 2>/dev/null || echo dev):1h
 # YEAR defines the year value used for substituting the YEAR placeholder in the boilerplate header.
 YEAR ?= $(shell date +%Y)
 
@@ -56,6 +56,18 @@ fmt: ## Run go fmt against code.
 vet: ## Run go vet against code.
 	go vet ./...
 
+.PHONY: lint
+lint: ## Run golangci-lint linter.
+	$(GOLANGCI_LINT) run
+
+.PHONY: lint-fix
+lint-fix: ## Run golangci-lint linter and perform fixes.
+	$(GOLANGCI_LINT) run --fix
+
+.PHONY: get-manifests
+get-manifests: ## Download component manifests.
+	./hack/scripts/get-manifests.sh
+
 .PHONY: deps
 deps: ## Tidy and verify Go module dependencies.
 	go mod tidy
@@ -91,18 +103,6 @@ cleanup-integration: ## Clean up integration test resources from the cluster.
 .PHONY: cleanup-e2e
 cleanup-e2e: ## Clean up e2e test resources and uninstall operator from the cluster.
 	./hack/scripts/cleanup-e2e.sh "$(OPERATOR_NAMESPACE)" "$(HELM_RELEASE)"
-
-.PHONY: lint
-lint: ## Run golangci-lint linter.
-	$(GOLANGCI_LINT) run
-
-.PHONY: lint-fix
-lint-fix: ## Run golangci-lint linter and perform fixes.
-	$(GOLANGCI_LINT) run --fix
-
-.PHONY: get-manifests
-get-manifests: ## Download component manifests.
-	./hack/scripts/get-manifests.sh
 
 ##@ Build
 
@@ -150,8 +150,8 @@ container-push: ## Push container image with the manager.
 
 ##@ Helm
 
-HELM_NAMESPACE ?= opendatahub-ai-gateway-system
-HELM_RELEASE   ?= opendatahub-ai-gateway-operator
+HELM_NAMESPACE ?= ai-gateway-system
+HELM_RELEASE   ?= ai-gateway-operator
 OPERATOR_NAMESPACE ?= $(HELM_NAMESPACE)
 INTEGRATION_TEST_NAMESPACE ?= integration-test
 HELM_EXTRA_ARGS ?=

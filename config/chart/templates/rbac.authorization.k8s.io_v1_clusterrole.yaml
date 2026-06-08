@@ -3,8 +3,8 @@ kind: ClusterRole
 metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: {{ include "chart.fullname" . }}
-  name: opendatahub-ai-gateway-components-aigateway-admin-role
+    app.kubernetes.io/name: ai-gateway-operator
+  name: ai-gateway-components-aigateway-admin-role
 rules:
 - apiGroups:
   - components.platform.opendatahub.io
@@ -24,8 +24,8 @@ kind: ClusterRole
 metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: {{ include "chart.fullname" . }}
-  name: opendatahub-ai-gateway-components-aigateway-editor-role
+    app.kubernetes.io/name: ai-gateway-operator
+  name: ai-gateway-components-aigateway-editor-role
 rules:
 - apiGroups:
   - components.platform.opendatahub.io
@@ -51,8 +51,8 @@ kind: ClusterRole
 metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: {{ include "chart.fullname" . }}
-  name: opendatahub-ai-gateway-components-aigateway-viewer-role
+    app.kubernetes.io/name: ai-gateway-operator
+  name: ai-gateway-components-aigateway-viewer-role
 rules:
 - apiGroups:
   - components.platform.opendatahub.io
@@ -72,7 +72,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: opendatahub-ai-gateway-manager-role
+  name: ai-gateway-manager-role
 rules:
 - apiGroups:
   - ""
@@ -248,7 +248,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: opendatahub-ai-gateway-metrics-auth-role
+  name: ai-gateway-metrics-auth-role
 rules:
 - apiGroups:
   - authentication.k8s.io
@@ -266,7 +266,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: opendatahub-ai-gateway-metrics-reader
+  name: ai-gateway-metrics-reader
 rules:
 - nonResourceURLs:
   - /metrics

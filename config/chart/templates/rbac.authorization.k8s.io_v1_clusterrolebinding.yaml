@@ -3,12 +3,12 @@ kind: ClusterRoleBinding
 metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: {{ include "chart.fullname" . }}
-  name: opendatahub-ai-gateway-manager-rolebinding
+    app.kubernetes.io/name: ai-gateway-operator
+  name: ai-gateway-manager-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: opendatahub-ai-gateway-manager-role
+  name: ai-gateway-manager-role
 subjects:
 - kind: ServiceAccount
   name: {{ default (include "chart.fullname" .) .Values.serviceAccount.name }}
@@ -17,11 +17,11 @@ subjects:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: opendatahub-ai-gateway-metrics-auth-rolebinding
+  name: ai-gateway-metrics-auth-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: opendatahub-ai-gateway-metrics-auth-role
+  name: ai-gateway-metrics-auth-role
 subjects:
 - kind: ServiceAccount
   name: {{ default (include "chart.fullname" .) .Values.serviceAccount.name }}

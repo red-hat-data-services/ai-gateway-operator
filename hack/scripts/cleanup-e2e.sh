@@ -4,8 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-NAMESPACE="${1:-opendatahub-ai-gateway-system}"
-HELM_RELEASE="${2:-opendatahub-ai-gateway-operator}"
+NAMESPACE="${1:-ai-gateway-system}"
+HELM_RELEASE="${2:-ai-gateway-operator}"
 CR_RESOURCE="aigateways.components.platform.opendatahub.io"
 
 echo "Cleaning up e2e test resources..."

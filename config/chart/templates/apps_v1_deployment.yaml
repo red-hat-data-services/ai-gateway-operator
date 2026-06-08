@@ -3,20 +3,20 @@ kind: Deployment
 metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: {{ include "chart.fullname" . }}
-  name: {{ include "chart.fullname" . }}
+    app.kubernetes.io/name: ai-gateway-operator
+  name: ai-gateway-operator
   namespace: {{ include "chart.namespace" . }}
 spec:
   replicas: {{ .Values.replicas }}
   selector:
     matchLabels:
-      app.kubernetes.io/name: {{ include "chart.fullname" . }}
+      app.kubernetes.io/name: ai-gateway-operator
   template:
     metadata:
       annotations:
         kubectl.kubernetes.io/default-container: manager
       labels:
-        app.kubernetes.io/name: {{ include "chart.fullname" . }}
+        app.kubernetes.io/name: ai-gateway-operator
     spec:
       containers:
       - command:
@@ -106,5 +106,5 @@ spec:
       - emptyDir: {}
         name: manifests
       - configMap:
-          name: opendatahub-ai-gateway-config
+          name: ai-gateway-config
         name: config

@@ -3,7 +3,7 @@ package support
 import "os"
 
 const (
-	DefaultOperatorNamespace        = "opendatahub-ai-gateway-system"
+	DefaultOperatorNamespace        = "ai-gateway-system"
 	DefaultIntegrationTestNamespace = "integration-test"
 )
 

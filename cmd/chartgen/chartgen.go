@@ -35,7 +35,7 @@ import (
 
 const (
 	defaultOutputDir   = "config/chart"
-	defaultChartName   = "opendatahub-ai-gateway-operator"
+	defaultChartName   = "ai-gateway-operator"
 	defaultChartVer    = "0.1.0"
 	templatesDirName   = "templates"
 	chartYAMLFilename  = "Chart.yaml"

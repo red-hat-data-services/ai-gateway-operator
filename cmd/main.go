@@ -26,7 +26,7 @@ import (
 	"github.com/opendatahub-io/ai-gateway-operator/cmd/operator"
 )
 
-const operatorName = "opendatahub-ai-gateway-operator"
+const operatorName = "ai-gateway-operator"
 
 func main() {
 	root := &cobra.Command{

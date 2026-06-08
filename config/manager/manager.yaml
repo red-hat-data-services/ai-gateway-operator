@@ -3,7 +3,7 @@ kind: Namespace
 metadata:
   labels:
 
-    app.kubernetes.io/name: opendatahub-ai-gateway-operator
+    app.kubernetes.io/name: ai-gateway-operator
     app.kubernetes.io/managed-by: kustomize
   name: system
 ---
@@ -14,13 +14,13 @@ metadata:
   namespace: system
   labels:
 
-    app.kubernetes.io/name: opendatahub-ai-gateway-operator
+    app.kubernetes.io/name: ai-gateway-operator
     app.kubernetes.io/managed-by: kustomize
 spec:
   selector:
     matchLabels:
   
-      app.kubernetes.io/name: opendatahub-ai-gateway-operator
+      app.kubernetes.io/name: ai-gateway-operator
   replicas: 1
   template:
     metadata:
@@ -28,7 +28,7 @@ spec:
         kubectl.kubernetes.io/default-container: manager
       labels:
     
-        app.kubernetes.io/name: opendatahub-ai-gateway-operator
+        app.kubernetes.io/name: ai-gateway-operator
     spec:
       # TODO(user): Uncomment the following code to configure the nodeAffinity expression
       # according to the platforms which are supported by your solution.
