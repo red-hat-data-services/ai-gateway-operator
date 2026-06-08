@@ -27,6 +27,7 @@ import (
 
 	componentApi "github.com/opendatahub-io/ai-gateway-operator/api/components/v1alpha1"
 	moduleconfig "github.com/opendatahub-io/ai-gateway-operator/pkg/config"
+	"github.com/opendatahub-io/ai-gateway-operator/pkg/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
@@ -37,8 +38,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
-
-const conditionDeploymentsAvailable = "DeploymentsAvailable"  // TODO: need operator export this wait for https://github.com/opendatahub-io/opendatahub-operator/pull/3624
 
 // Module operator's own CRD
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=aigateways,verbs=get;list;watch;create;update;patch;delete
@@ -101,7 +100,7 @@ func NewReconciler(
 			gc.InNamespace(cfg.ApplicationsNamespace),
 		)).
 		WithConditions(
-			conditionDeploymentsAvailable,
+			status.ConditionDeploymentsAvailable,
 		).
 		Build(ctx)
 
