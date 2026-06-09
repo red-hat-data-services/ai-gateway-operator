@@ -26,8 +26,13 @@ spec:
   - name: build-platforms
     value:
     - linux/x86_64
+    - linux/ppc64le
+    - linux/s390x
+    - linux-m2xlarge/arm64
   - name: dockerfile
     value: Containerfile.konflux
+  - name: prefetch-input
+    value: '[{"type": "gomod", "path": "."}]'
   pipelineSpec:
     description: |
       This pipeline is ideal for building multi-arch container images from a Containerfile while maintaining trust after pipeline customization.
@@ -59,7 +64,7 @@ spec:
       description: Skip checks against built image
       name: skip-checks
       type: string
-    - default: "false"
+    - default: "true"
       description: Execute the build with network isolation
       name: hermetic
       type: string
@@ -75,7 +80,7 @@ spec:
     - default: "false"
       description: Build a source image.
       name: build-source-image
-      type: string
+      type: "true"
     - default: "true"
       description: Add built image into an OCI image index
       name: build-image-index
