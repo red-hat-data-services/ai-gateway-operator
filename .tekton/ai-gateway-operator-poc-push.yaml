@@ -77,10 +77,10 @@ spec:
         1h, 2d, 3w for hours, days, and weeks, respectively.
       name: image-expires-after
       type: string
-    - default: "false"
+    - default: "true"
       description: Build a source image.
       name: build-source-image
-      value: "true"
+      type: string
     - default: "true"
       description: Add built image into an OCI image index
       name: build-image-index
