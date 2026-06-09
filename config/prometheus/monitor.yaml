@@ -4,7 +4,7 @@ kind: ServiceMonitor
 metadata:
   labels:
 
-    app.kubernetes.io/name: opendatahub-ai-gateway-operator
+    app.kubernetes.io/name: ai-gateway-operator
     app.kubernetes.io/managed-by: kustomize
   name: metrics-monitor
   namespace: system
@@ -24,4 +24,4 @@ spec:
   selector:
     matchLabels:
   
-      app.kubernetes.io/name: opendatahub-ai-gateway-operator
+      app.kubernetes.io/name: ai-gateway-operator

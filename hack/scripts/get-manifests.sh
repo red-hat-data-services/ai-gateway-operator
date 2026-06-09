@@ -9,7 +9,7 @@ fetch_component() {
     local repo_name="$2"
     local src_path="$3"
     local odh_commit="$4"
-    local rhoai_commit="$5"
+    local rhds_commit="$5"
 
     local dst_manifests_dir="${PROJECT_ROOT}/config/manifests/${component_name}"
 
@@ -23,9 +23,9 @@ fetch_component() {
         repo_url="https://github.com/opendatahub-io/${repo_name}"
         commit_sha="$odh_commit"
     else
-        echo "Downloading manifests for RHOAI"
+        echo "Downloading manifests for RHDS"
         repo_url="https://github.com/red-hat-data-services/${repo_name}"
-        commit_sha="$rhoai_commit"
+        commit_sha="$rhds_commit"
     fi
 
     if [[ -z "${commit_sha}" ]]; then
@@ -58,8 +58,19 @@ fetch_component() {
     echo "[${component_name}] Manifests ready at ${dst_manifests_dir}"
 }
 
-# Update batchgateway manifests, change the commit SHA below and run: make get-manifests
+# Component manifest sources. To upgrade a component, change its SHA(s) below
+# and run: make get-manifests. To add a component, add a new entry.
+#
+#   <component_name> = "<repo_name>|<src_path>|<odh_commit>|<rhds_commit>"
+#
+# ODH commits:   https://github.com/opendatahub-io/<repo_name>/commits/
+# RHDS commits: https://github.com/red-hat-data-services/<repo_name>/commits/
+declare -A COMPONENTS=(
+    [batchgateway]="llm-d-batch-gateway-operator|config|58ac16b6ccbc7f062cd819763bbbacf8b1e8e4ab|554d9416f5112da85f99a407c7d33d257175e550"
+    # [maas]="models-as-a-service|config|<odh_commit>|<rhds_commit>"
+)
 
-# https://github.com/opendatahub-io/llm-d-batch-gateway-operator/commits/
-# https://github.com/red-hat-data-services/llm-d-batch-gateway-operator/commits
-fetch_component "batchgateway" "llm-d-batch-gateway-operator" "config" "dabd62b9c9f54bef1e3cc673a92d6d21ed79cdad" "554d9416f5112da85f99a407c7d33d257175e550"
+for component_name in "${!COMPONENTS[@]}"; do
+    IFS='|' read -r repo_name src_path odh_commit rhds_commit <<< "${COMPONENTS[$component_name]}"
+    fetch_component "$component_name" "$repo_name" "$src_path" "$odh_commit" "$rhds_commit"
+done

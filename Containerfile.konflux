@@ -15,7 +15,8 @@ COPY api/ api/
 COPY cmd/ cmd/
 COPY internal/ internal/
 COPY pkg/ pkg/
-COPY config/manifests/ config/manifests/
+
+COPY config/manifests/batchgateway/ config/manifests/batchgateway/
 
 RUN mkdir -p bin && \
     CGO_ENABLED=${CGO_ENABLED} GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
