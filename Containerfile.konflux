@@ -14,14 +14,12 @@ COPY api/ api/
 COPY cmd/ cmd/
 COPY internal/ internal/
 COPY pkg/ pkg/
-COPY config/manifests/ config/manifests/
+COPY --chmod=0755 config/manifests/ config/manifests/
 
 RUN mkdir -p bin && \
     CGO_ENABLED=${CGO_ENABLED} GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     GOEXPERIMENT=strictfipsruntime \
     make build-bin BIN_DIR=/opt/app-root/src/bin BIN_NAME=manager LDFLAGS="${LDFLAGS}"
-
-RUN chmod -R a+rX config/manifests/
 
 FROM registry.access.redhat.com/ubi9/ubi-minimal:9.7@sha256:d91be7cea9f03a757d69ad7fcdfcd7849dba820110e7980d5e2a1f46ed06ea3b
 WORKDIR /
