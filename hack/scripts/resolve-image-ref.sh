@@ -9,7 +9,7 @@ usage() {
     cat >&2 <<'EOF'
 Usage: resolve-image-ref.sh <image-ref>
 
-Print a canonical image reference for Helm deployment.
+Print a canonical image reference for deployment.
 If the input already uses a digest, it is returned unchanged.
 Otherwise the script tries to resolve the image tag to a digest via the local
 container tool, pulling the image if needed. If digest lookup still fails,

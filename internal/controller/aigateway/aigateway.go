@@ -34,7 +34,10 @@ const (
 )
 
 var batchGatewayImageParamMap = map[string]string{
-	"BATCH_GATEWAY_OPERATOR_IMAGE": "RELATED_IMAGE_ODH_BATCH_GATEWAY_OPERATOR_IMAGE",
+	"LLM_D_BATCH_GATEWAY_OPERATOR_IMAGE":  "RELATED_IMAGE_ODH_BATCH_GATEWAY_OPERATOR_IMAGE",
+	"LLM_D_BATCH_GATEWAY_APISERVER_IMAGE": "RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_APISERVER_IMAGE",
+	"LLM_D_BATCH_GATEWAY_PROCESSOR_IMAGE": "RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_PROCESSOR_IMAGE",
+	"LLM_D_BATCH_GATEWAY_GC_IMAGE":        "RELATED_IMAGE_ODH_LLM_D_BATCH_GATEWAY_GC_IMAGE",
 }
 
 // Module holds process-lifetime state for the aigateway controller.
@@ -87,6 +90,8 @@ func (m *Module) initialize(_ context.Context, rr *odhtypes.ReconciliationReques
 			return fmt.Errorf("failed to update batch-gateway params.env: %w", err)
 		}
 	}
+
+	// TODO: add for maas
 
 	return nil
 }

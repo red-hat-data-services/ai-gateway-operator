@@ -58,7 +58,7 @@ const (
 	annotationType         = "platform.opendatahub.io/type"
 	annotationVersion      = "platform.opendatahub.io/version"
 
-	operatorConfigMapName = "opendatahub-ai-gateway-config"
+	operatorConfigMapName = "ai-gateway-config"
 	moduleCRDName         = "aigateways.components.platform.opendatahub.io"
 )
 
@@ -129,7 +129,7 @@ func TestAIGateway(t *testing.T) {
 		},
 		operatorDeploy: &appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "opendatahub-ai-gateway-operator",
+				Name:      "ai-gateway-operator",
 				Namespace: operatorNamespace,
 			},
 		},
@@ -141,7 +141,7 @@ func TestAIGateway(t *testing.T) {
 		},
 		workloadDeploy: &appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "batch-gateway-operator",
+				Name:      "llm-d-batch-gateway-operator",
 				Namespace: operatorNamespace,
 			},
 		},

@@ -1,5 +1,5 @@
 # Build the manager binary
-FROM registry.access.redhat.com/ubi10/go-toolset:latest AS builder
+FROM registry.access.redhat.com/ubi10/go-toolset:1.26 AS builder
 ARG TARGETOS
 ARG TARGETARCH
 ARG LDFLAGS=""
@@ -21,7 +21,8 @@ COPY api/ api/
 COPY cmd/ cmd/
 COPY internal/ internal/
 COPY pkg/ pkg/
-COPY config/manifests/ config/manifests/
+# only the sub-modules need to be copied here TODO: maas
+COPY config/manifests/batchgateway/ config/manifests/batchgateway/
 
 # Generated code and manifests come from the host (make container-prep).
 # Only compile the manager binary inside the image.
@@ -32,7 +33,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-$(go env GOARCH)}
 RUN chmod -R a+rX config/manifests/
 
 # Use UBI 10 micro as minimal runtime image
-FROM registry.access.redhat.com/ubi10/ubi-micro:latest
+FROM registry.access.redhat.com/ubi10/ubi-micro:10.0
 WORKDIR /
 COPY --from=builder /workspace/bin/manager .
 COPY --from=builder /workspace/config/manifests/ /manifests/

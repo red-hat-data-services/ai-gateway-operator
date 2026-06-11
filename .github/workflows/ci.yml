@@ -17,12 +17,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           persist-credentials: false
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: go.mod
 
@@ -36,12 +36,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           persist-credentials: false
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: go.mod
 
@@ -49,7 +49,7 @@ jobs:
         run: make test
 
       - name: Create Kind cluster
-        uses: helm/kind-action@v1
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
           cluster_name: kind
 
@@ -67,24 +67,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           persist-credentials: false
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: go.mod
 
       - name: Create Kind cluster
-        uses: helm/kind-action@v1
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
           cluster_name: kind
 
       - name: Compute image reference
         id: img
         run: |
-          IMG="ttl.sh/opendatahub-ai-gateway-operator-${GITHUB_SHA::7}:1h"
+          IMG="ttl.sh/ai-gateway-operator-${GITHUB_SHA::7}:1h"
           echo "img=${IMG}" >> "$GITHUB_OUTPUT"
           echo "Using image: ${IMG}"
 
@@ -93,18 +93,15 @@ jobs:
           make container-build IMG=${{ steps.img.outputs.img }}
           make container-push IMG=${{ steps.img.outputs.img }}
 
-      - name: Generate Helm chart
-        run: make helm
-
       - name: Run E2E tests
         run: make test-e2e IMG=${{ steps.img.outputs.img }}
 
       - name: Show pod logs on failure
         if: failure()
         run: |
-          NS="opendatahub-ai-gateway-system"
+          NS="ai-gateway-system"
           echo "=== Module operator logs ==="
-          kubectl logs -n "${NS}" -l app.kubernetes.io/name=opendatahub-ai-gateway-operator --tail=100 2>/dev/null || true
+          kubectl logs -n "${NS}" -l app.kubernetes.io/name=ai-gateway-operator --tail=100 2>/dev/null || true
           echo ""
           echo "=== Batch-gateway operator logs ==="
           kubectl logs -n "${NS}" -l app.kubernetes.io/name=batch-gateway-operator --tail=100 2>/dev/null || true

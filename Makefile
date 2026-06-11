@@ -2,7 +2,7 @@
 -include local.mk
 
 # Image URL to use all building/pushing image targets
-IMG ?= ttl.sh/opendatahub-ai-gateway-operator-$(shell git rev-parse --short HEAD 2>/dev/null || echo dev):1h
+IMG ?= ttl.sh/ai-gateway-operator-$(shell git rev-parse --short HEAD 2>/dev/null || echo dev):1h
 # YEAR defines the year value used for substituting the YEAR placeholder in the boilerplate header.
 YEAR ?= $(shell date +%Y)
 
@@ -17,13 +17,11 @@ SHELL = /usr/bin/env bash -o pipefail
 CONTROLLER_GEN_VERSION ?= v0.20.1
 KUSTOMIZE_VERSION      ?= v5.8.1
 GOLANGCI_LINT_VERSION  ?= v2.11.4
-HELM_VERSION           ?= v4.2.0
 
 ## Tool Commands
 CONTROLLER_GEN = go run sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION)
 KUSTOMIZE      = go run sigs.k8s.io/kustomize/kustomize/v5@$(KUSTOMIZE_VERSION)
 GOLANGCI_LINT  = go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
-HELM           = go run helm.sh/helm/v4/cmd/helm@$(HELM_VERSION)
 
 KUBECTL ?= kubectl
 
@@ -56,6 +54,18 @@ fmt: ## Run go fmt against code.
 vet: ## Run go vet against code.
 	go vet ./...
 
+.PHONY: lint
+lint: ## Run golangci-lint linter.
+	$(GOLANGCI_LINT) run
+
+.PHONY: lint-fix
+lint-fix: ## Run golangci-lint linter and perform fixes.
+	$(GOLANGCI_LINT) run --fix
+
+.PHONY: get-manifests
+get-manifests: ## Download component manifests.
+	./hack/scripts/get-manifests.sh
+
 .PHONY: deps
 deps: ## Tidy and verify Go module dependencies.
 	go mod tidy
@@ -82,7 +92,7 @@ test-e2e-run: ## Run e2e tests only (operator must already be deployed).
 	OPERATOR_NAMESPACE="$(OPERATOR_NAMESPACE)" go test -ldflags "$(LDFLAGS)" ./test/e2e/ -tags=e2e -v -timeout 5m -failfast
 
 .PHONY: test-e2e
-test-e2e: cleanup-e2e deploy-helm test-e2e-run ## Run e2e tests (cleans cluster, deploys operator, then tests).
+test-e2e: cleanup-e2e deploy test-e2e-run ## Run e2e tests (cleans cluster, deploys operator, then tests).
 
 .PHONY: cleanup-integration
 cleanup-integration: ## Clean up integration test resources from the cluster.
@@ -90,19 +100,7 @@ cleanup-integration: ## Clean up integration test resources from the cluster.
 
 .PHONY: cleanup-e2e
 cleanup-e2e: ## Clean up e2e test resources and uninstall operator from the cluster.
-	./hack/scripts/cleanup-e2e.sh "$(OPERATOR_NAMESPACE)" "$(HELM_RELEASE)"
-
-.PHONY: lint
-lint: ## Run golangci-lint linter.
-	$(GOLANGCI_LINT) run
-
-.PHONY: lint-fix
-lint-fix: ## Run golangci-lint linter and perform fixes.
-	$(GOLANGCI_LINT) run --fix
-
-.PHONY: get-manifests
-get-manifests: ## Download component manifests.
-	./hack/scripts/get-manifests.sh
+	./hack/scripts/cleanup-e2e.sh "$(OPERATOR_NAMESPACE)"
 
 ##@ Build
 
@@ -148,53 +146,39 @@ container-build: container-prep ## Build container image with the manager.
 container-push: ## Push container image with the manager.
 	$(CONTAINER_TOOL) push ${IMG}
 
-##@ Helm
-
-HELM_NAMESPACE ?= opendatahub-ai-gateway-system
-HELM_RELEASE   ?= opendatahub-ai-gateway-operator
-OPERATOR_NAMESPACE ?= $(HELM_NAMESPACE)
-INTEGRATION_TEST_NAMESPACE ?= integration-test
-HELM_EXTRA_ARGS ?=
-
-.PHONY: helm
-helm: manifests generate ## Generate Helm chart from kustomize output.
-	rm -rf config/chart
-	$(KUSTOMIZE) build config/default | go run ./cmd/main.go chartgen --output config/chart
-
-.PHONY: helm-status
-helm-status: ## Show Helm release status.
-	$(HELM) status $(HELM_RELEASE) --namespace $(HELM_NAMESPACE)
-
 ##@ Deployment
+
+OPERATOR_NAMESPACE         ?= ai-gateway-system
+INTEGRATION_TEST_NAMESPACE ?= integration-test
 
 ifndef ignore-not-found
   ignore-not-found = false
 endif
 
-.PHONY: deploy-helm
-deploy-helm: ## Deploy controller via Helm chart.
+.PHONY: deploy
+deploy: manifests ## Deploy controller to the K8s cluster via kustomize (config/default).
 	@resolved_img="$$(bash ./hack/scripts/resolve-image-ref.sh "$(IMG)")"; \
 		echo "Deploying image: $$resolved_img"; \
-		$(HELM) upgrade --install $(HELM_RELEASE) config/chart \
-			--namespace $(HELM_NAMESPACE) --create-namespace \
-			--set-string image.fullRef="$$resolved_img" \
-			--wait --timeout 5m $(HELM_EXTRA_ARGS)
+		tmp="$$(mktemp -d)"; trap 'rm -rf "$$tmp"' EXIT; \
+		cp -r config "$$tmp/config"; \
+		( cd "$$tmp/config/manager" && $(KUSTOMIZE) edit set image controller="$$resolved_img" ); \
+		$(KUSTOMIZE) build "$$tmp/config/default" | $(KUBECTL) apply -f -
+	$(KUBECTL) -n $(OPERATOR_NAMESPACE) rollout status deploy/ai-gateway-operator --timeout=5m
+
+.PHONY: undeploy
+undeploy: ## Undeploy controller from the K8s cluster.
+	-$(KUSTOMIZE) build config/default | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: push-crc-image
 push-crc-image: ## Push a built image to the CRC internal registry and print the pullspec.
-	@bash ./hack/scripts/push-crc-image.sh "$(IMG)" "$(HELM_NAMESPACE)" "$(MODULE_NAME)"
+	@bash ./hack/scripts/push-crc-image.sh "$(IMG)" "$(OPERATOR_NAMESPACE)" "$(MODULE_NAME)"
 
 .PHONY: deploy-crc
-deploy-crc: ## Build locally, push to CRC internal registry, and deploy via Helm.
+deploy-crc: ## Build locally, push to CRC internal registry, and deploy via kustomize.
 	$(MAKE) container-build
-	@img="$$(bash ./hack/scripts/push-crc-image.sh "$(IMG)" "$(HELM_NAMESPACE)" "$(MODULE_NAME)")"; \
+	@img="$$(bash ./hack/scripts/push-crc-image.sh "$(IMG)" "$(OPERATOR_NAMESPACE)" "$(MODULE_NAME)")"; \
 		echo "Using image: $$img"; \
-		$(MAKE) helm; \
-		$(MAKE) deploy-helm IMG="$$img"
-
-.PHONY: undeploy-helm
-undeploy-helm: ## Undeploy controller installed via Helm.
-	-$(HELM) uninstall $(HELM_RELEASE) --namespace $(HELM_NAMESPACE)
+		$(MAKE) deploy IMG="$$img"
 
 .PHONY: install
 install: manifests ## Install CRDs into the K8s cluster specified in ~/.kube/config.

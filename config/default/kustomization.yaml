@@ -1,8 +1,9 @@
-namespace: opendatahub-ai-gateway-system
+namespace: ai-gateway-system
 
-namePrefix: opendatahub-ai-gateway-
+namePrefix: ai-gateway-
 
 resources:
+- namespace.yaml
 - ../crd
 - ../rbac
 - ../manager
