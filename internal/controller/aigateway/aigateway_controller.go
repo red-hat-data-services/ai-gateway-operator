@@ -20,6 +20,7 @@ import (
 	"context"
 	"path/filepath"
 
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -86,15 +87,18 @@ import (
 // Cluster-wide rules (no resourceNames) are required for escalation; named-role rules alone are not enough.
 // +kubebuilder:rbac:groups="",resources=serviceaccounts/token,verbs=create
 // +kubebuilder:rbac:groups="",resources=endpoints;pods,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=namespaces,verbs=delete;patch;update
 // +kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=get
 // +kubebuilder:rbac:groups=apps,resources=deployments/finalizers,verbs=update
 // +kubebuilder:rbac:groups=authentication.k8s.io,resources=tokenreviews,verbs=create
 // +kubebuilder:rbac:groups=authorization.k8s.io,resources=subjectaccessreviews,verbs=create
-// +kubebuilder:rbac:groups=batch,resources=cronjobs;jobs,verbs=create;delete;get;list;patch;watch
+// +kubebuilder:rbac:groups=batch,resources=cronjobs,verbs=create;delete;get;list;patch;watch
+// +kubebuilder:rbac:groups=batch,resources=jobs,verbs=create;delete;get
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=modelsasservices,verbs=get;list;patch;update;watch
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=modelsasservices/status,verbs=get;patch;update
 // +kubebuilder:rbac:groups=config.openshift.io,resources=authentications,verbs=get;list;watch
 // +kubebuilder:rbac:groups=coordination.k8s.io,resources=leases,verbs=create;delete;get;list;patch;update;watch
+// +kubebuilder:rbac:groups=discovery.k8s.io,resources=endpointslices,verbs=list;watch
 // +kubebuilder:rbac:groups=extensions.kuadrant.io,resources=telemetrypolicies,verbs=create;delete;get;list;patch;watch
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways,verbs=get;list;watch
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes/finalizers,verbs=update
@@ -105,7 +109,7 @@ import (
 // +kubebuilder:rbac:groups=kuadrant.io,resources=ratelimitpolicies;telemetrypolicies,verbs=create;delete;get;list;patch;watch
 // +kubebuilder:rbac:groups=maas.opendatahub.io,resources=aitenants;configs;externalmodels;maasauthpolicies;maasmodelrefs;maassubscriptions;maastenantconfigs;tenants,verbs=create;delete;get;list;patch;update;watch
 // +kubebuilder:rbac:groups=maas.opendatahub.io,resources=aitenants/status;configs/status;maasauthpolicies/status;maasmodelrefs/status;maassubscriptions/status;maastenantconfigs/status;tenants/status,verbs=get;patch;update
-// +kubebuilder:rbac:groups=maas.opendatahub.io,resources=aitenants/finalizers;configs/finalizers;externalmodels/finalizers;maasauthpolicies/finalizers;maasmodelrefs/finalizers;maassubscriptions/finalizers;maastenantconfigs/finalizers,verbs=update
+// +kubebuilder:rbac:groups=maas.opendatahub.io,resources=aitenants/finalizers;configs/finalizers;externalmodels/finalizers;maasauthpolicies/finalizers;maasmodelrefs/finalizers;maassubscriptions/finalizers,verbs=update
 // +kubebuilder:rbac:groups=monitoring.coreos.com,resources=podmonitors;servicemonitors,verbs=create;delete;get;list;patch;watch
 // +kubebuilder:rbac:groups=networking.istio.io,resources=destinationrules,verbs=create;delete;get;list;patch;update;watch
 // +kubebuilder:rbac:groups=networking.istio.io,resources=envoyfilters,verbs=create;delete;get;list;patch;watch
@@ -137,29 +141,31 @@ func NewReconciler(
 		Owns(&corev1.ServiceAccount{}).
 		Owns(&corev1.Service{}).
 		Owns(&apiextensionsv1.CustomResourceDefinition{}).
+		Owns(&admissionregistrationv1.ValidatingWebhookConfiguration{}).
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(predicates.DefaultDeploymentPredicate)).
 		WithAction(m.initialize).
 		WithAction(m.ensureInfraSecretMigrationRBAC).
 		WithAction(m.upgradeIfNeeded).
-		WithAction(releases.NewAction(
+		WithAction(withPreservedPlatformRelease(releases.NewAction(
 			releases.WithMetadataFilePath(func(rr *odhtypes.ReconciliationRequest) string {
 				return filepath.Join(rr.ManifestsBasePath, "ai-gateway-operator", releases.ComponentMetadataFilename)
 			}),
-		)).
+		))).
 		WithAction(kustomize.NewAction(
 			kustomize.WithLabel(labels.ODH.Component(componentName), labels.True),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, componentName),
 		)).
+		WithAction(m.annotateResource).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 			deploy.WithApplyOrder(),
 		)).
-		WithAction(m.ownDerivedResources).
 		WithAction(deployments.NewAction()).
 		WithAction(m.overWriteCondition).
 		WithAction(m.reportStatus).
 		WithAction(gc.NewAction(
 			gc.InNamespace(cfg.ApplicationsNamespace),
+			gc.WithObjectPredicate(m.maasAwareGCPredicate),
 		)).
 		WithConditions(
 			status.ConditionDeploymentsAvailable,
