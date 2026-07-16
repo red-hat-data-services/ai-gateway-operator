@@ -39,20 +39,45 @@ const (
 	maasDBConfigSecret    = "maas-db-config"
 )
 
-// ensureInfraSecretMigrationRBAC creates namespace-scoped RBAC in the infrastructure
-// namespace so the maas-controller can copy the maas-db-config secret during upgrades.
+// ensureInfraSecretMigrationRBAC manages the lifecycle of the infrastructure namespace -
+// the one holding maas-api, the maas-db-config connection secret, and this function's own
+// namespace-scoped RBAC that lets maas-controller copy maas-db-config during upgrades.
+//
+// While Managed, it ensures the namespace and RBAC exist. While Removed, it waits for
+// maas-controller to report (via TeardownCompletedAnnotation on its own Deployment) that
+// its self-teardown is done, then deletes the whole infrastructure namespace - which also
+// removes this RBAC, since nothing in that namespace carries an ownerReference (see
+// ensureNamespace below) and so cannot be left to gc.NewAction. Deleting the namespace does
+// not destroy irreplaceable state: maas-api is per-tenant compute that maas-controller
+// recreates on demand, and maas-db-config is a re-derivable connection string - the database
+// itself is expected to be external (e.g. AWS RDS) in production.
 func (m *Module) ensureInfraSecretMigrationRBAC(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	obj, ok := rr.Instance.(*componentApi.AIGateway)
 	if !ok {
 		return fmt.Errorf("instance is not an AIGateway")
 	}
 
-	if obj.Spec.ModelsAsAService.ManagementState != managedState {
+	infraNs := deriveInfrastructureNamespace(m.cfg.ApplicationsNamespace)
+	if infraNs == m.cfg.ApplicationsNamespace {
 		return nil
 	}
 
-	infraNs := deriveInfrastructureNamespace(m.cfg.ApplicationsNamespace)
-	if infraNs == m.cfg.ApplicationsNamespace {
+	switch obj.Spec.ModelsAsAService.ManagementState {
+	case managedState:
+		// fall through to the ensure logic below
+	case removedState:
+		if rr.Client == nil {
+			return fmt.Errorf("reconciliation client is nil")
+		}
+		completed, err := m.maasTeardownCompleted(ctx, rr.Client)
+		if err != nil {
+			return err
+		}
+		if !completed {
+			return nil
+		}
+		return m.ensureInfraNamespaceDeleted(ctx, rr.Client, infraNs)
+	default:
 		return nil
 	}
 
@@ -78,7 +103,32 @@ func (m *Module) ensureInfraSecretMigrationRBAC(ctx context.Context, rr *odhtype
 	return nil
 }
 
+func (m *Module) ensureInfraNamespaceDeleted(ctx context.Context, cli client.Client, name string) error {
+	ns := &corev1.Namespace{}
+	err := cli.Get(ctx, types.NamespacedName{Name: name}, ns)
+	switch {
+	case k8serr.IsNotFound(err):
+		return nil
+	case err != nil:
+		return fmt.Errorf("get infrastructure namespace %s: %w", name, err)
+	}
+
+	if ns.DeletionTimestamp.IsZero() {
+		if err := cli.Delete(ctx, ns); client.IgnoreNotFound(err) != nil {
+			return fmt.Errorf("delete infrastructure namespace %s: %w", name, err)
+		}
+	}
+
+	return nil
+}
+
 func ensureNamespace(ctx context.Context, cli client.Client, name string) error {
+	requiredLabels := map[string]string{
+		"app.kubernetes.io/part-of":          "ai-gateway",
+		"app.kubernetes.io/managed-by":       "ai-gateway-operator",
+		"opendatahub.io/generated-namespace": "true",
+	}
+
 	ns := &corev1.Namespace{}
 	if err := cli.Get(ctx, types.NamespacedName{Name: name}, ns); err != nil {
 		if !k8serr.IsNotFound(err) {
@@ -86,14 +136,26 @@ func ensureNamespace(ctx context.Context, cli client.Client, name string) error 
 		}
 		ns = &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: name,
-				Labels: map[string]string{
-					"app.kubernetes.io/part-of":    "ai-gateway",
-					"app.kubernetes.io/managed-by": "ai-gateway-operator",
-				},
+				Name:   name,
+				Labels: requiredLabels,
 			},
 		}
 		return cli.Create(ctx, ns)
+	}
+
+	// Ensure required labels are present on pre-existing namespace (upgrade path).
+	needsUpdate := false
+	if ns.Labels == nil {
+		ns.Labels = make(map[string]string)
+	}
+	for k, v := range requiredLabels {
+		if ns.Labels[k] != v {
+			ns.Labels[k] = v
+			needsUpdate = true
+		}
+	}
+	if needsUpdate {
+		return cli.Update(ctx, ns)
 	}
 	return nil
 }
