@@ -43,6 +43,7 @@ import (
 	moduleconfig "github.com/opendatahub-io/ai-gateway-operator/pkg/config"
 	"github.com/opendatahub-io/ai-gateway-operator/pkg/controller/status"
 	"github.com/opendatahub-io/ai-gateway-operator/pkg/version"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhAnnotations "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
@@ -129,6 +130,22 @@ func TestNewModule(t *testing.T) {
 	g.Expect(m.batchGatewayManifestInfo.SourcePath).To(Equal("base"))
 	g.Expect(m.maasManifestInfo.ContextDir).To(Equal("maascontroller"))
 	g.Expect(m.maasManifestInfo.SourcePath).To(Equal("base"))
+}
+
+func TestNewModuleXKS(t *testing.T) {
+	g := NewWithT(t)
+
+	cfg := &moduleconfig.Config{
+		PlatformType:    string(cluster.XKS),
+		PlatformVersion: "1.0.0",
+		ManifestsPath:   "/manifests",
+	}
+
+	m, err := NewModule(cfg)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(m.maasManifestInfo.ContextDir).To(Equal("maascontroller"))
+	g.Expect(m.maasManifestInfo.SourcePath).To(Equal("overlays/xks"))
+	g.Expect(m.batchGatewayManifestInfo.SourcePath).To(Equal("base"))
 }
 
 func TestNewModuleInvalidVersion(t *testing.T) {
@@ -346,6 +363,41 @@ func TestEnsureInfraSecretMigrationRBACCreatesNamespaceAndRBACWhenManaged(t *tes
 	}, &rbacv1.RoleBinding{})).To(Succeed())
 }
 
+func TestEnsureInfraSecretMigrationRBACLabelsPreExistingNamespace(t *testing.T) {
+	g := NewWithT(t)
+
+	m := newTestModuleWithNamespace(t, odhApplicationsNS)
+	obj := newTestAIGateway()
+	obj.Spec.ModelsAsAService.ManagementState = managedState
+
+	preExistingNS := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   odhInfrastructureNS,
+			Labels: map[string]string{"existing-label": "keep-me"},
+		},
+	}
+	rr := newTestRR(obj)
+	rr.Client = fake.NewClientBuilder().WithScheme(newTestScheme(t)).WithObjects(preExistingNS).Build()
+
+	g.Expect(m.ensureInfraSecretMigrationRBAC(context.Background(), rr)).To(Succeed())
+
+	var ns corev1.Namespace
+	g.Expect(rr.Client.Get(context.Background(), types.NamespacedName{Name: odhInfrastructureNS}, &ns)).To(Succeed())
+	g.Expect(ns.Labels).To(HaveKeyWithValue("app.kubernetes.io/part-of", "ai-gateway"))
+	g.Expect(ns.Labels).To(HaveKeyWithValue("app.kubernetes.io/managed-by", "ai-gateway-operator"))
+	g.Expect(ns.Labels).To(HaveKeyWithValue("opendatahub.io/generated-namespace", "true"))
+	g.Expect(ns.Labels).To(HaveKeyWithValue("existing-label", "keep-me"))
+
+	g.Expect(rr.Client.Get(context.Background(), types.NamespacedName{
+		Name:      secretMigrateRoleName,
+		Namespace: odhInfrastructureNS,
+	}, &rbacv1.Role{})).To(Succeed())
+	g.Expect(rr.Client.Get(context.Background(), types.NamespacedName{
+		Name:      secretMigrateRoleName,
+		Namespace: odhInfrastructureNS,
+	}, &rbacv1.RoleBinding{})).To(Succeed())
+}
+
 func TestEnsureInfraSecretMigrationRBACNoopWhenTeardownNotCompleted(t *testing.T) {
 	g := NewWithT(t)
 
@@ -370,7 +422,7 @@ func TestEnsureInfraSecretMigrationRBACNoopWhenTeardownNotCompleted(t *testing.T
 	g.Expect(rr.Client.Get(context.Background(), types.NamespacedName{Name: odhInfrastructureNS}, &corev1.Namespace{})).To(Succeed())
 }
 
-func TestEnsureInfraSecretMigrationRBACDeletesNamespaceOnceTeardownCompleted(t *testing.T) {
+func TestEnsureInfraSecretMigrationRBACDeletesRBACButKeepsNamespaceOnceTeardownCompleted(t *testing.T) {
 	g := NewWithT(t)
 
 	m := newTestModuleWithNamespace(t, odhApplicationsNS)
@@ -390,11 +442,37 @@ func TestEnsureInfraSecretMigrationRBACDeletesNamespaceOnceTeardownCompleted(t *
 	infraNs := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: odhInfrastructureNS},
 	}
-	rr.Client = fake.NewClientBuilder().WithScheme(newTestScheme(t)).WithObjects(dep, infraNs).Build()
+	role := &rbacv1.Role{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretMigrateRoleName,
+			Namespace: odhInfrastructureNS,
+		},
+	}
+	roleBinding := &rbacv1.RoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretMigrateRoleName,
+			Namespace: odhInfrastructureNS,
+		},
+	}
+	dbSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      maasDBConfigSecret,
+			Namespace: odhInfrastructureNS,
+		},
+	}
+	rr.Client = fake.NewClientBuilder().WithScheme(newTestScheme(t)).
+		WithObjects(dep, infraNs, role, roleBinding, dbSecret).Build()
 
 	g.Expect(m.ensureInfraSecretMigrationRBAC(context.Background(), rr)).To(Succeed())
 
-	g.Expect(rr.Client.Get(context.Background(), types.NamespacedName{Name: odhInfrastructureNS}, &corev1.Namespace{})).ToNot(Succeed())
+	g.Expect(rr.Client.Get(context.Background(), types.NamespacedName{Name: odhInfrastructureNS}, &corev1.Namespace{})).
+		To(Succeed(), "namespace should be preserved")
+	g.Expect(rr.Client.Get(context.Background(), types.NamespacedName{Name: secretMigrateRoleName, Namespace: odhInfrastructureNS}, &rbacv1.Role{})).
+		ToNot(Succeed(), "Role should be deleted")
+	g.Expect(rr.Client.Get(context.Background(), types.NamespacedName{Name: secretMigrateRoleName, Namespace: odhInfrastructureNS}, &rbacv1.RoleBinding{})).
+		ToNot(Succeed(), "RoleBinding should be deleted")
+	g.Expect(rr.Client.Get(context.Background(), types.NamespacedName{Name: maasDBConfigSecret, Namespace: odhInfrastructureNS}, &corev1.Secret{})).
+		To(Succeed(), "maas-db-config secret should be preserved")
 }
 
 func TestEnsureInfraSecretMigrationRBACNoopWhenSeparationDisabled(t *testing.T) {
