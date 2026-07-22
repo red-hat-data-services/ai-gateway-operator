@@ -764,7 +764,7 @@ func TestReportStatus_WithPlatformConfigMap(t *testing.T) {
 	obj := newTestAIGateway()
 	// Simulate releases.NewAction having already populated module metadata.
 	obj.Status.Releases = []common.ComponentRelease{{
-		Name:    "LLM-D AI Gateway Operator",
+		Name:    "AI Gateway Operator",
 		Version: "v0.1.0",
 		RepoURL: "https://github.com/opendatahub-io/ai-gateway-operator",
 	}}
@@ -794,7 +794,7 @@ func TestReportStatus_WithPlatformConfigMap(t *testing.T) {
 		releasesByName[r.Name] = r
 	}
 
-	moduleRelease, ok := releasesByName["LLM-D AI Gateway Operator"]
+	moduleRelease, ok := releasesByName["AI Gateway Operator"]
 	g.Expect(ok).To(BeTrue())
 	g.Expect(moduleRelease.Version).To(Equal("v0.1.0"))
 
@@ -809,7 +809,7 @@ func TestReportStatus_NoPlatformConfigMap(t *testing.T) {
 	m := newTestModule(t)
 	obj := newTestAIGateway()
 	obj.Status.Releases = []common.ComponentRelease{{
-		Name:    "LLM-D AI Gateway Operator",
+		Name:    "AI Gateway Operator",
 		Version: "v0.1.0",
 	}}
 	rr := newTestRR(obj)
@@ -822,7 +822,7 @@ func TestReportStatus_NoPlatformConfigMap(t *testing.T) {
 
 	// Module release preserved; platform entry omitted when ConfigMap is absent.
 	g.Expect(obj.Status.Releases).To(HaveLen(1))
-	g.Expect(obj.Status.Releases[0].Name).To(Equal("LLM-D AI Gateway Operator"))
+	g.Expect(obj.Status.Releases[0].Name).To(Equal("AI Gateway Operator"))
 }
 
 func TestSetPlatformRelease_UpdatesExisting(t *testing.T) {
@@ -830,7 +830,7 @@ func TestSetPlatformRelease_UpdatesExisting(t *testing.T) {
 
 	obj := newTestAIGateway()
 	obj.Status.Releases = []common.ComponentRelease{
-		{Name: "LLM-D AI Gateway Operator", Version: "v0.1.0"},
+		{Name: "AI Gateway Operator", Version: "v0.1.0"},
 		{Name: platformReleaseName, Version: "2.19.0"},
 	}
 
@@ -846,7 +846,7 @@ func TestWithPreservedPlatformRelease(t *testing.T) {
 
 	obj := newTestAIGateway()
 	obj.Status.Releases = []common.ComponentRelease{
-		{Name: "LLM-D AI Gateway Operator", Version: "v0.1.0"},
+		{Name: "AI Gateway Operator", Version: "v0.1.0"},
 		{Name: platformReleaseName, Version: "2.19.0"},
 	}
 	rr := newTestRR(obj)
@@ -855,7 +855,7 @@ func TestWithPreservedPlatformRelease(t *testing.T) {
 		inst := rr.Instance.(*componentApi.AIGateway)
 		// Simulate releases.NewAction replacing the full list with metadata only.
 		inst.SetReleaseStatus([]common.ComponentRelease{{
-			Name:    "LLM-D AI Gateway Operator",
+			Name:    "AI Gateway Operator",
 			Version: "v0.1.0",
 		}})
 		return nil
@@ -872,7 +872,7 @@ func TestWithPreservedPlatformRelease_OnError(t *testing.T) {
 
 	obj := newTestAIGateway()
 	obj.Status.Releases = []common.ComponentRelease{
-		{Name: "LLM-D AI Gateway Operator", Version: "v0.1.0"},
+		{Name: "AI Gateway Operator", Version: "v0.1.0"},
 		{Name: platformReleaseName, Version: "2.19.0"},
 	}
 	rr := newTestRR(obj)
@@ -881,7 +881,7 @@ func TestWithPreservedPlatformRelease_OnError(t *testing.T) {
 		inst := rr.Instance.(*componentApi.AIGateway)
 		// Simulate releases.NewAction partially replacing the list before failing.
 		inst.SetReleaseStatus([]common.ComponentRelease{{
-			Name:    "LLM-D AI Gateway Operator",
+			Name:    "AI Gateway Operator",
 			Version: "v0.1.0",
 		}})
 		return fmt.Errorf("simulated failure")
