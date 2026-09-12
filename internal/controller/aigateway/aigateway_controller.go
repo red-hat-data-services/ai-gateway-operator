@@ -53,7 +53,7 @@ import (
 // +kubebuilder:rbac:groups=dscinitialization.opendatahub.io,resources=dscinitializations,verbs=get;list;watch
 
 // Resources deployed by the batch-gateway operator kustomize manifests
-// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=apps,resources=deployments;statefulsets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services;serviceaccounts;configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=create;get;list;patch;watch
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
@@ -113,7 +113,7 @@ import (
 // +kubebuilder:rbac:groups=kuadrant.io,resources=authpolicies;tokenratelimitpolicies,verbs=create;delete;get;list;patch;update;watch
 // +kubebuilder:rbac:groups=kuadrant.io,resources=ratelimitpolicies;telemetrypolicies,verbs=create;delete;get;list;patch;watch
 // +kubebuilder:rbac:groups=maas.opendatahub.io,resources=aitenants;configs;externalmodels;maasauthpolicies;maasmodelrefs;maassubscriptions;maastenantconfigs;tenants,verbs=create;delete;get;list;patch;update;watch
-// +kubebuilder:rbac:groups=maas.opendatahub.io,resources=aitenants/status;configs/status;maasauthpolicies/status;maasmodelrefs/status;maassubscriptions/status;maastenantconfigs/status;tenants/status,verbs=get;patch;update
+// +kubebuilder:rbac:groups=maas.opendatahub.io,resources=aitenants/status;configs/status;externalmodels/status;maasauthpolicies/status;maasmodelrefs/status;maassubscriptions/status;maastenantconfigs/status;tenants/status,verbs=get;patch;update
 // +kubebuilder:rbac:groups=maas.opendatahub.io,resources=aitenants/finalizers;configs/finalizers;externalmodels/finalizers;maasauthpolicies/finalizers;maasmodelrefs/finalizers;maassubscriptions/finalizers,verbs=update
 // +kubebuilder:rbac:groups=monitoring.coreos.com,resources=podmonitors;servicemonitors,verbs=create;delete;get;list;patch;watch
 // +kubebuilder:rbac:groups=networking.istio.io,resources=destinationrules,verbs=create;delete;get;list;patch;update;watch
@@ -160,6 +160,18 @@ func NewReconciler(
 				predicate.NewPredicateFuncs(platformConfigMapPredicate(cfg.ApplicationsNamespace)),
 				predicate.ResourceVersionChangedPredicate{},
 			),
+			reconciler.WithEventMapper(func(_ context.Context, _ client.Object) []reconcile.Request {
+				return []reconcile.Request{{NamespacedName: types.NamespacedName{
+					Name: componentApi.AIGatewayInstanceName,
+				}}}
+			}),
+		).
+		// Watch the MaaS Config singleton so status changes (e.g. TenantsHealthy)
+		// trigger a reconcile. Dynamic because the Config CRD is deployed by this
+		// operator and may not exist at startup.
+		WatchesGVK(maasConfigGVK,
+			reconciler.Dynamic(reconciler.CrdExists(maasConfigGVK)),
+			reconciler.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
 			reconciler.WithEventMapper(func(_ context.Context, _ client.Object) []reconcile.Request {
 				return []reconcile.Request{{NamespacedName: types.NamespacedName{
 					Name: componentApi.AIGatewayInstanceName,
