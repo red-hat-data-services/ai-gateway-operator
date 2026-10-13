@@ -36,7 +36,7 @@ RUN VERSION_PKG="github.com/opendatahub-io/ai-gateway-operator/pkg/version" && \
 
 RUN chmod -R a+rX config/manifests/
 
-FROM registry.redhat.io/ubi9/ubi-minimal-pqc:9.8@sha256:d34666200b64d5a183c867487fd2f48ee8547eb18134e5647099970e26f08af9
+FROM registry.redhat.io/ubi9/ubi-minimal-pqc:9.8@sha256:db10c80537d786068c7c911d7ef6ea103315d0615fa4b39b5946f7976563a8d7
 WORKDIR /
 COPY --from=builder /opt/app-root/src/bin/manager /manager
 COPY --from=builder /opt/app-root/src/config/manifests/ /manifests/
