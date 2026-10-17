@@ -591,13 +591,24 @@ func aiGridCRD(name string, established bool) *extv1.CustomResourceDefinition {
 	return crd
 }
 
+func aiGridOperatorDeployment(ns string, ready bool) *appsv1.Deployment {
+	dep := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: aiGridOperatorDeploymentName, Namespace: ns}}
+	if ready {
+		dep.Status.ReadyReplicas = 1
+	}
+	return dep
+}
+
 func TestReportSubModuleStatus_AIGridManaged(t *testing.T) {
-	allEstablished := func(skip int) []client.Object {
+	crds := func(skip int) []client.Object {
 		objs := make([]client.Object, 0, len(aiGridCRDNames))
 		for i, name := range aiGridCRDNames {
 			objs = append(objs, aiGridCRD(name, i != skip))
 		}
 		return objs
+	}
+	withOperator := func(objs []client.Object, ready bool) []client.Object {
+		return append(objs, aiGridOperatorDeployment("test-ns", ready))
 	}
 
 	tests := []struct {
@@ -606,8 +617,10 @@ func TestReportSubModuleStatus_AIGridManaged(t *testing.T) {
 		status metav1.ConditionStatus
 		reason string
 	}{
-		{"all established", allEstablished(-1), metav1.ConditionTrue, status.SubModuleReadyReason},
-		{"one not established", allEstablished(0), metav1.ConditionFalse, status.SubModuleNotReadyReason},
+		{"all established, operator available", withOperator(crds(-1), true), metav1.ConditionTrue, status.SubModuleReadyReason},
+		{"all established, operator not ready", withOperator(crds(-1), false), metav1.ConditionFalse, status.SubModuleNotReadyReason},
+		{"all established, operator missing", crds(-1), metav1.ConditionFalse, status.SubModuleNotReadyReason},
+		{"one not established", withOperator(crds(0), true), metav1.ConditionFalse, status.SubModuleNotReadyReason},
 		{"missing", nil, metav1.ConditionFalse, status.SubModuleNotReadyReason},
 	}
 
@@ -646,8 +659,9 @@ func TestReportSubModuleStatus_AIGridRemoved(t *testing.T) {
 	g.Expect(c.Reason).To(Equal(status.SubModuleRemovedReason))
 }
 
-// TestOverWriteConditionAIGridOnly verifies a CRDs-only aiGrid does not keep
-// the 0/0 DeploymentsAvailable failure at Error severity.
+// TestOverWriteConditionAIGridOnly verifies that aiGrid alone counts as a managed
+// sub-module: it deploys the grid operator, so a DeploymentsAvailable failure stays
+// at Error severity and holds Ready down.
 func TestOverWriteConditionAIGridOnly(t *testing.T) {
 	g := NewWithT(t)
 
@@ -658,13 +672,13 @@ func TestOverWriteConditionAIGridOnly(t *testing.T) {
 
 	rr.Conditions.MarkFalse(
 		status.ConditionDeploymentsAvailable,
-		conditions.WithMessage("0/0 deployments ready"),
+		conditions.WithMessage("0/1 deployments ready"),
 	)
 
 	g.Expect(m.overWriteCondition(context.Background(), rr)).To(Succeed())
 
 	da := rr.Conditions.GetCondition(status.ConditionDeploymentsAvailable)
 	g.Expect(da).NotTo(BeNil())
-	g.Expect(da.Severity).To(Equal(common.ConditionSeverityInfo))
-	g.Expect(rr.Conditions.GetCondition(readyCondition).Status).To(Equal(metav1.ConditionTrue))
+	g.Expect(da.Severity).NotTo(Equal(common.ConditionSeverityInfo))
+	g.Expect(rr.Conditions.GetCondition(readyCondition).Status).To(Equal(metav1.ConditionFalse))
 }

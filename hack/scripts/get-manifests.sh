@@ -24,6 +24,24 @@ ensure_kustomization() {
     echo "Generated ${dir}/kustomization.yaml"
 }
 
+copy_component_manifests() {
+    local component_name="$1" src="$2" dst="$3"
+
+    rm -rf "${dst}"
+    mkdir -p "${dst}"
+    if [[ "${component_name}" == "aigrid" ]]; then
+        mkdir -p "${dst}/overlays"
+        cp -a "${src}/crds" "${dst}/crds"
+        cp -a "${src}/overlays/openshift" "${dst}/overlays/openshift"
+        # Helm values generate these manifests upstream; Kustomize does not consume them.
+        rm -f "${dst}/overlays/openshift/values.yaml"
+        ensure_kustomization "${dst}/crds"
+    else
+        cp -a "${src}/." "${dst}/"
+        ensure_kustomization "${dst}"
+    fi
+}
+
 fetch_component() {
     local component_name="$1"
     local repo_name="$2"
@@ -55,10 +73,7 @@ fetch_component() {
 
     if [[ "${USE_LOCAL:-}" == "true" ]] && [[ -d "${PROJECT_ROOT}/../${repo_name}" ]]; then
         echo "Copying manifests from adjacent ${repo_name} checkout"
-        rm -rf "${dst_manifests_dir}"
-        mkdir -p "${dst_manifests_dir}"
-        cp -a "${PROJECT_ROOT}/../${repo_name}/${src_path}/." "${dst_manifests_dir}/"
-        ensure_kustomization "${dst_manifests_dir}"
+        copy_component_manifests "${component_name}" "${PROJECT_ROOT}/../${repo_name}/${src_path}" "${dst_manifests_dir}"
         echo "Manifests copied to ${dst_manifests_dir}"
         return
     fi
@@ -70,10 +85,7 @@ fetch_component() {
     git -C "${tmp_dir}" fetch --depth 1 -q origin "${commit_sha}"
     git -C "${tmp_dir}" reset -q --hard "${commit_sha}"
 
-    rm -rf "${dst_manifests_dir}"
-    mkdir -p "${dst_manifests_dir}"
-    cp -a "${tmp_dir}/${src_path}/." "${dst_manifests_dir}/"
-    ensure_kustomization "${dst_manifests_dir}"
+    copy_component_manifests "${component_name}" "${tmp_dir}/${src_path}" "${dst_manifests_dir}"
 
     rm -rf "${tmp_dir}"
 
@@ -90,9 +102,9 @@ fetch_component() {
 
 declare -A COMPONENTS=(
     [batchgateway]="llm-d-batch-gateway-operator|config|1fdf57bc2bc5b6ab3cb3ebbc93d04d54e2531059"
-    [maascontroller]="models-as-a-service|deployment/base/maas-controller|e70170e4f8ae3e7bb764d1f5dc630a9e88f37499|e70170e4f8ae3e7bb764d1f5dc630a9e88f37499"
+    [maascontroller]="models-as-a-service|deployment/base/maas-controller|9eba6984b7fbf422da5877c3b966f5eeb6b144e8|9eba6984b7fbf422da5877c3b966f5eeb6b144e8"
     [aigatewaycontroller]="ai-gateway-controller|config/self|46caf7ee42c74e49ddbb2f1037895c0a89251a39|46caf7ee42c74e49ddbb2f1037895c0a89251a39"
-    [aigrid]="praxis-ai-grid-operator|deploy/crds|cc9c3004514a4b40d76baafb3f6263a25ab27fe9|8ec9c25e8f8a025e8d44f130be9ede22a3009da4"
+    [aigrid]="praxis-ai-grid-operator|deploy|45c8cc538a0463ce74c603ca59c1ca2097ba9dba|45c8cc538a0463ce74c603ca59c1ca2097ba9dba"
 )
 
 for component_name in "${!COMPONENTS[@]}"; do
