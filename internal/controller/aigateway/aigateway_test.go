@@ -19,8 +19,10 @@ package aigateway
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 
 	. "github.com/onsi/gomega"
@@ -1084,9 +1086,11 @@ func TestInitializeManagedAIGrid(t *testing.T) {
 	rr := newTestRR(obj)
 
 	g.Expect(m.initialize(context.Background(), rr)).To(Succeed())
-	g.Expect(rr.Manifests).To(HaveLen(1))
+	g.Expect(rr.Manifests).To(HaveLen(2))
 	g.Expect(rr.Manifests[0].ContextDir).To(Equal("aigrid"))
-	g.Expect(rr.Manifests[0].String()).To(Equal("/manifests/aigrid"))
+	g.Expect(rr.Manifests[0].String()).To(Equal("/manifests/aigrid/crds"))
+	g.Expect(rr.Manifests[1].ContextDir).To(Equal("aigrid"))
+	g.Expect(rr.Manifests[1].String()).To(Equal("/manifests/aigrid/overlays/openshift"))
 }
 
 func TestInitializeRemovedAIGrid(t *testing.T) {
@@ -1139,7 +1143,7 @@ func TestMaasAwareGCPredicateKeepsStaleAIGridCRD(t *testing.T) {
 func TestAIGridManifestsRenderOnlyCRDs(t *testing.T) {
 	g := NewWithT(t)
 
-	mi := odhtypes.ManifestInfo{Path: filepath.Join("..", "..", "..", "config", "manifests"), ContextDir: "aigrid"}
+	mi := odhtypes.ManifestInfo{Path: filepath.Join("..", "..", "..", "config", "manifests"), ContextDir: "aigrid", SourcePath: "crds"}
 	objs, err := kustomize.NewEngine().Render(mi.String(), kustomize.WithNamespace("test-ns"))
 	g.Expect(err).NotTo(HaveOccurred())
 
@@ -1149,4 +1153,54 @@ func TestAIGridManifestsRenderOnlyCRDs(t *testing.T) {
 		names = append(names, o.GetName())
 	}
 	g.Expect(names).To(ConsistOf(aiGridCRDNames))
+}
+
+// TestAIGridOperatorManifestsRender renders the vendored grid operator bundle the way
+// the kustomize action does: every namespaced object lands in the render namespace,
+// the bindings follow, and the related-image override reaches the Deployment.
+func TestAIGridOperatorManifestsRender(t *testing.T) {
+	g := NewWithT(t)
+
+	manifestsPath := t.TempDir()
+	source := filepath.Join("..", "..", "..", "config", "manifests", "aigrid")
+	g.Expect(os.CopyFS(filepath.Join(manifestsPath, "aigrid"), os.DirFS(source))).To(Succeed())
+	image := "quay.io/example/grid-operator@sha256:" + strings.Repeat("a", 64)
+	t.Setenv("RELATED_IMAGE_ODH_PRAXIS_AI_GRID_OPERATOR_IMAGE", image)
+	m, err := NewModule(&moduleconfig.Config{
+		PlatformType:          "OpenDataHub",
+		PlatformVersion:       "1.0.0",
+		ManifestsPath:         manifestsPath,
+		ApplicationsNamespace: "test-ns",
+	})
+	g.Expect(err).NotTo(HaveOccurred())
+	objs, err := kustomize.NewEngine().Render(m.aiGridOperatorManifestInfo.String(), kustomize.WithNamespace("test-ns"))
+	g.Expect(err).NotTo(HaveOccurred())
+
+	kinds := map[string]int{}
+	for _, o := range objs {
+		kinds[o.GetKind()]++
+		if o.GetKind() == "Deployment" {
+			g.Expect(o.GetName()).To(Equal(aiGridOperatorDeploymentName))
+			g.Expect(o.GetNamespace()).To(Equal("test-ns"))
+			containers, _, err := unstructured.NestedSlice(o.Object, "spec", "template", "spec", "containers")
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(containers).To(HaveLen(1))
+			g.Expect(containers[0].(map[string]any)["image"]).To(Equal(image))
+		}
+		if o.GetKind() == "ClusterRoleBinding" || o.GetKind() == "RoleBinding" {
+			subjects, _, err := unstructured.NestedSlice(o.Object, "subjects")
+			g.Expect(err).NotTo(HaveOccurred())
+			for _, subject := range subjects {
+				g.Expect(subject.(map[string]any)["namespace"]).To(Equal("test-ns"), o.GetName())
+			}
+		}
+		if o.GetKind() == "Service" && o.GetName() != "grid-operator-metrics" {
+			svcType, _, err := unstructured.NestedString(o.Object, "spec", "type")
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(svcType).To(Equal("LoadBalancer"), o.GetName())
+		}
+	}
+	g.Expect(kinds["Deployment"]).To(Equal(1))
+	g.Expect(kinds["CustomResourceDefinition"]).To(BeZero())
+	g.Expect(kinds["Namespace"]).To(BeZero())
 }

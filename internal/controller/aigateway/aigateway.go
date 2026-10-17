@@ -113,15 +113,20 @@ var aiGatewayControllerImageParamMap = map[string]string{
 	"praxis-extproc-image":        "RELATED_IMAGE_ODH_PRAXIS_EXTPROC_IMAGE",
 }
 
+var aiGridOperatorImageParamMap = map[string]string{
+	"grid-operator-image": "RELATED_IMAGE_ODH_PRAXIS_AI_GRID_OPERATOR_IMAGE",
+}
+
 // aiGridCRDSuffix is the API group suffix shared by all AI Grid CRDs.
 const aiGridCRDSuffix = ".grid.praxis.fast"
 
-// aiGridCRDNames are the CRDs vendored in config/manifests/aigrid.
+// aiGridCRDNames are the CRDs vendored in config/manifests/aigrid/crds.
 var aiGridCRDNames = []string{
 	"agenttoolproviders" + aiGridCRDSuffix,
 	"gridnetworks" + aiGridCRDSuffix,
 	"gridsites" + aiGridCRDSuffix,
 	"inferenceproviders" + aiGridCRDSuffix,
+	"siteinvites" + aiGridCRDSuffix,
 }
 
 // Module holds process-lifetime state for the aigateway controller.
@@ -132,6 +137,7 @@ type Module struct {
 	maasManifestInfo                odhtypes.ManifestInfo
 	aiGatewayControllerManifestInfo odhtypes.ManifestInfo
 	aiGridManifestInfo              odhtypes.ManifestInfo
+	aiGridOperatorManifestInfo      odhtypes.ManifestInfo
 }
 
 // NewModule creates a Module with one-shot computed state.
@@ -180,6 +186,19 @@ func NewModule(cfg *moduleconfig.Config) (*Module, error) {
 	aiGridMI := odhtypes.ManifestInfo{
 		Path:       cfg.ManifestsPath,
 		ContextDir: "aigrid",
+		SourcePath: "crds",
+	}
+
+	// The grid operator, vendored as its generated platform base: the image comes
+	// through params.env and the namespace from the render.
+	aiGridOperatorMI := odhtypes.ManifestInfo{
+		Path:       cfg.ManifestsPath,
+		ContextDir: "aigrid",
+		SourcePath: "overlays/openshift",
+	}
+
+	if err := odhdeploy.ApplyParams(aiGridOperatorMI.String(), "params.env", aiGridOperatorImageParamMap, nil); err != nil {
+		return nil, fmt.Errorf("failed to update images on path %s: %w", aiGridOperatorMI, err)
 	}
 
 	return &Module{
@@ -189,6 +208,7 @@ func NewModule(cfg *moduleconfig.Config) (*Module, error) {
 		maasManifestInfo:                maasMI,
 		aiGatewayControllerManifestInfo: aiGatewayControllerMI,
 		aiGridManifestInfo:              aiGridMI,
+		aiGridOperatorManifestInfo:      aiGridOperatorMI,
 	}, nil
 }
 
@@ -212,8 +232,9 @@ func (m *Module) initialize(ctx context.Context, rr *odhtypes.ReconciliationRequ
 		}
 	}
 
+	// CRDs first, so the operator finds its kinds established.
 	if obj.Spec.AIGrid.ManagementState == managedState {
-		rr.Manifests = append(rr.Manifests, m.aiGridManifestInfo)
+		rr.Manifests = append(rr.Manifests, m.aiGridManifestInfo, m.aiGridOperatorManifestInfo)
 	}
 
 	keepMaaSInstalled := obj.Spec.ModelsAsAService.ManagementState == managedState
@@ -269,10 +290,10 @@ func (m *Module) initialize(ctx context.Context, rr *odhtypes.ReconciliationRequ
 }
 
 // anySubModuleManaged reports whether at least one AIGateway sub-module is set to Managed.
-// aiGrid is excluded: it has no Deployment, so it must not block the 0/0 downgrade.
 func anySubModuleManaged(obj *componentApi.AIGateway) bool {
 	return obj.Spec.BatchGateway.ManagementState == managedState ||
-		obj.Spec.ModelsAsAService.ManagementState == managedState
+		obj.Spec.ModelsAsAService.ManagementState == managedState ||
+		obj.Spec.AIGrid.ManagementState == managedState
 }
 
 // force to set the DeploymentsAvailable condition to Info level from Error
@@ -567,23 +588,34 @@ func (m *Module) reportSubModuleStatus(ctx context.Context, rr *odhtypes.Reconci
 		)
 	}
 
-	// AIGridReady — reflects whether the AI Grid CRDs are Established.
+	// AIGridReady — the AI Grid CRDs are Established and the grid operator is available.
 	if obj.Spec.AIGrid.ManagementState == managedState {
-		ready, err := crdsEstablished(ctx, rr.Client, aiGridCRDNames)
+		crdsReady, err := crdsEstablished(ctx, rr.Client, aiGridCRDNames)
 		if err != nil {
 			return fmt.Errorf("checking AI Grid CRDs: %w", err)
 		}
-		if ready {
+		operatorReady, err := deploymentAvailable(ctx, rr, aiGridOperatorDeploymentName, ns)
+		if err != nil {
+			return fmt.Errorf("checking %s Deployment: %w", aiGridOperatorDeploymentName, err)
+		}
+		switch {
+		case crdsReady && operatorReady:
 			rr.Conditions.MarkTrue(
 				status.ConditionAIGridReady,
 				conditions.WithReason(status.SubModuleReadyReason),
-				conditions.WithMessage("aiGrid is Managed and CRDs are established"),
+				conditions.WithMessage("aiGrid is Managed, CRDs are established and the grid operator is available"),
 			)
-		} else {
+		case !crdsReady:
 			rr.Conditions.MarkFalse(
 				status.ConditionAIGridReady,
 				conditions.WithReason(status.SubModuleNotReadyReason),
 				conditions.WithMessage("aiGrid is Managed but CRDs are not yet established"),
+			)
+		default:
+			rr.Conditions.MarkFalse(
+				status.ConditionAIGridReady,
+				conditions.WithReason(status.SubModuleNotReadyReason),
+				conditions.WithMessage("aiGrid is Managed but the grid operator is not yet available"),
 			)
 		}
 	} else {
@@ -591,7 +623,7 @@ func (m *Module) reportSubModuleStatus(ctx context.Context, rr *odhtypes.Reconci
 			status.ConditionAIGridReady,
 			conditions.WithSeverity(common.ConditionSeverityInfo),
 			conditions.WithReason(status.SubModuleRemovedReason),
-			conditions.WithMessage("aiGrid ManagementState is Removed; CRDs are kept"),
+			conditions.WithMessage("aiGrid ManagementState is Removed; the grid operator is removed and CRDs are kept"),
 		)
 	}
 

@@ -55,7 +55,7 @@ import (
 // Resources deployed by the batch-gateway operator kustomize manifests
 // +kubebuilder:rbac:groups=apps,resources=deployments;statefulsets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services;serviceaccounts;configmaps,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="",resources=secrets,verbs=create;get;list;patch;watch
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=create;delete;get;list;patch;watch
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles;clusterrolebindings,verbs=create;list;watch
@@ -86,8 +86,19 @@ import (
 // +kubebuilder:rbac:groups=admissionregistration.k8s.io,resources=validatingwebhookconfigurations,resourceNames=maas-validating-webhook-configuration,verbs=get;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=create;get;list;patch;update;watch
 
-// AI Grid CRDs (CRDs only). No delete: they are kept when aiGrid is Removed.
-// +kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,resourceNames=gridnetworks.grid.praxis.fast;gridsites.grid.praxis.fast;inferenceproviders.grid.praxis.fast;agenttoolproviders.grid.praxis.fast,verbs=get;update;patch
+// AI Grid CRDs. No delete: they are kept when aiGrid is Removed.
+// +kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,resourceNames=gridnetworks.grid.praxis.fast;gridsites.grid.praxis.fast;inferenceproviders.grid.praxis.fast;agenttoolproviders.grid.praxis.fast;siteinvites.grid.praxis.fast,verbs=get;update;patch
+
+// AI Grid operator - permissions to deploy its vendored manifests
+// (config/manifests/aigrid/overlays/openshift, fetched by make get-manifests) and every rule
+// its ClusterRoles and Role grant, since the operator cannot grant what it lacks.
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles,resourceNames=grid-operator-crd;grid-operator-resources;grid-operator-metrics-scraper,verbs=get;update;patch;delete
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterrolebindings,resourceNames=grid-operator-crd;grid-operator-metrics-scraper,verbs=get;update;patch;delete
+// +kubebuilder:rbac:groups=grid.praxis.fast,resources=agenttoolproviders;gridnetworks;inferenceproviders,verbs=get;list;watch;patch
+// +kubebuilder:rbac:groups=grid.praxis.fast,resources=gridsites,verbs=get;list;watch;patch;create;update;delete
+// +kubebuilder:rbac:groups=grid.praxis.fast,resources=agenttoolproviders/status;gridnetworks/status;gridsites/status;inferenceproviders/status,verbs=get;patch
+// +kubebuilder:rbac:groups="",resources=serviceaccounts/token,resourceNames=grid-operator-metrics-scraper,verbs=create
+// +kubebuilder:rbac:urls=/metrics,verbs=get
 
 // ai-gateway-controller deployment - permissions to deploy its vendored manifests
 // (fetched by make get-manifests; do not edit config/manifests/aigatewaycontroller/
@@ -136,6 +147,7 @@ import (
 // +kubebuilder:rbac:groups=opentelemetry.io,resources=opentelemetrycollectors,verbs=create;delete;get;list;patch;watch
 // +kubebuilder:rbac:groups=operator.authorino.kuadrant.io,resources=authorinos,verbs=get;list;watch
 // +kubebuilder:rbac:groups=perses.dev,resources=persesdashboards;persesdatasources,verbs=create;delete;get;list;patch;watch
+// +kubebuilder:rbac:groups=route.openshift.io,resources=routes,verbs=get;list;watch
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterrolebindings;clusterroles,verbs=get;list;watch;patch;update;delete
 // +kubebuilder:rbac:groups=serving.kserve.io,resources=llminferenceservices,verbs=get;list;watch
 // +kubebuilder:rbac:groups=telemetry.istio.io,resources=telemetries,verbs=create;delete;get;list;patch;watch
