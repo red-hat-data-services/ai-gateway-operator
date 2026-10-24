@@ -23,6 +23,7 @@ import (
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -35,6 +36,7 @@ import (
 	moduleconfig "github.com/opendatahub-io/ai-gateway-operator/pkg/config"
 	"github.com/opendatahub-io/ai-gateway-operator/pkg/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
@@ -95,6 +97,10 @@ import (
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles,resourceNames=grid-operator-crd;grid-operator-resources;grid-operator-metrics-scraper,verbs=get;update;patch;delete
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterrolebindings,resourceNames=grid-operator-crd;grid-operator-metrics-scraper,verbs=get;update;patch;delete
 // +kubebuilder:rbac:groups=grid.praxis.fast,resources=agenttoolproviders;gridnetworks;inferenceproviders,verbs=get;list;watch;patch
+// The operator applies grid-operator-crd, which grants create on gridnetworks, so it has
+// to hold that verb itself or the apply is refused as an escalation. Its own reconcile
+// never creates one, which is why this is separate from the read rule above.
+// +kubebuilder:rbac:groups=grid.praxis.fast,resources=gridnetworks,verbs=create
 // +kubebuilder:rbac:groups=grid.praxis.fast,resources=gridsites,verbs=get;list;watch;patch;create;update;delete
 // +kubebuilder:rbac:groups=grid.praxis.fast,resources=agenttoolproviders/status;gridnetworks/status;gridsites/status;inferenceproviders/status,verbs=get;patch
 // +kubebuilder:rbac:groups="",resources=serviceaccounts/token,resourceNames=grid-operator-metrics-scraper,verbs=create
@@ -108,6 +114,9 @@ import (
 // (payload-processing-reader per tenant). Cluster-scoped update here is required for
 // RBAC escalation when AGO applies that vendored ClusterRole.
 // +kubebuilder:rbac:groups=aigateway.opendatahub.io,resources=aiguardrails,verbs=get;list;watch
+// +kubebuilder:rbac:groups=aigateway.opendatahub.io,resources=aiguardrails/status,verbs=get;patch
+// +kubebuilder:rbac:groups=trustyai.opendatahub.io,resources=nemoguardrails,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,resourceNames=aiguardrails.aigateway.opendatahub.io,verbs=get;update;patch;delete
 
 // MaaS RBAC escalation for manager-role — permissions granted inside vendored maascontroller ClusterRoles.
 // Required so ai-gateway-operator can create/patch those roles without RBAC escalation errors.
@@ -177,6 +186,8 @@ func NewReconciler(
 		Owns(&corev1.Service{}).
 		Owns(&apiextensionsv1.CustomResourceDefinition{}).
 		Owns(&admissionregistrationv1.ValidatingWebhookConfiguration{}).
+		Owns(&networkingv1.NetworkPolicy{}).
+		OwnsGVK(gvk.CoreosServiceMonitor, reconciler.Dynamic(reconciler.CrdExists(gvk.CoreosServiceMonitor))).
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(predicates.DefaultDeploymentPredicate)).
 		// Watch the platform-managed ConfigMap so changes to platformVersion trigger
 		// a reconcile and status.releases[platform].version stays current.
@@ -227,6 +238,7 @@ func NewReconciler(
 			kustomize.WithLabel(labels.ODH.Component(componentName), labels.True),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, componentName),
 		)).
+		WithAction(m.renderAIGridOperator).
 		WithAction(m.annotateResource).
 		WithAction(m.migrateSelector).
 		WithAction(deploy.NewAction(
