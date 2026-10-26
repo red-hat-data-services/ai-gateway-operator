@@ -101,10 +101,10 @@ fetch_component() {
 # RHDS commits: https://github.com/red-hat-data-services/<repo_name>/commits/
 
 declare -A COMPONENTS=(
-    [batchgateway]="llm-d-batch-gateway-operator|config|4efd1cb521830450f076228b4f7730f870f1106e"
-    [maascontroller]="models-as-a-service|deployment/base/maas-controller|9eba6984b7fbf422da5877c3b966f5eeb6b144e8|9eba6984b7fbf422da5877c3b966f5eeb6b144e8"
-    [aigatewaycontroller]="ai-gateway-controller|config/self|fe5b38c2ef23972256b3cd26b808d6acd2b3e630|fe5b38c2ef23972256b3cd26b808d6acd2b3e630"
-    [aigrid]="praxis-ai-grid-operator|deploy|ed60534100b4b0ee986b6714d1e7cb6d685b7236|dbd7f199dedb3f931b8ce5750022f6ff577c094c"
+    [batchgateway]="llm-d-batch-gateway-operator|config|a70baa9565898c65412389f1cf2a543a197e5ce8"
+    [maascontroller]="models-as-a-service|deployment/base/maas-controller|761884ed5a5d8939ca23a84d144821e9615d7115|761884ed5a5d8939ca23a84d144821e9615d7115"
+    [aigatewaycontroller]="ai-gateway-controller|config/self|ecda771a9a231002b13176058a81ad820eb2c2b4|ecda771a9a231002b13176058a81ad820eb2c2b4"
+    [aigrid]="praxis-ai-grid-operator|deploy|bd432b7aca186b7659a28a442c9207b9b87d710b|2098b405085864aba8bf1a257432b5be9bac9923"
 )
 
 for component_name in "${!COMPONENTS[@]}"; do
