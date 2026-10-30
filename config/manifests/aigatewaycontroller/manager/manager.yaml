@@ -28,7 +28,6 @@ spec:
           - --leader-elect
           - --health-probe-bind-address=:8081
           - --metrics-bind-address=:8443
-          - --metrics-secure=true
           - --image=$(RELATED_IMAGE_ODH_PRAXIS_EXTPROC_IMAGE)
         env:
           - name: LOG_DEVELOPMENT
